@@ -15,6 +15,7 @@ function Menu() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     const loadMenu = async () => {
@@ -31,25 +32,21 @@ function Menu() {
           comboMasterResult,
         ] = await Promise.all([
           getProducts(),
-
           supabase
             .from("categories")
             .select("*")
             .eq("is_active", true)
             .order("display_order"),
-
           supabase
             .from("offers")
             .select("*, products(name_en, price, image_url)")
             .eq("is_active", true),
-
           supabase
             .from("store_notices")
             .select("*")
             .eq("is_active", true)
             .order("display_order"),
           supabase.from("combo_items").select("*"),
-
           supabase
             .from("combos")
             .select("*")
@@ -96,43 +93,34 @@ function Menu() {
 
   const formatPrice = (price) =>
     new Intl.NumberFormat("en-IN").format(price ?? 0);
-const getComboPricing = (combo) => {
-  const items = comboItems.filter(
-    (item) =>
-      item.combo_id === combo.id &&
-      Number(item.quantity) > 0
-  );
 
-  const originalPrice = items.reduce((total, item) => {
-    const product = products.find(
-      (p) => p.id === item.item_product_id
+  const getComboPricing = (combo) => {
+    const items = comboItems.filter(
+      (item) => item.combo_id === combo.id && Number(item.quantity) > 0
     );
 
-    if (!product) return total;
+    const originalPrice = items.reduce((total, item) => {
+      const product = products.find((p) => p.id === item.item_product_id);
+      if (!product) return total;
+      return total + Number(product.price) * Number(item.quantity);
+    }, 0);
 
-    return total + Number(product.price) * Number(item.quantity);
-  }, 0);
+    const comboPrice = Number(combo.price);
 
-  const comboPrice = Number(combo.price);
-
-  return {
-    items,
-    originalPrice,
-    comboPrice,
-    savings: Math.max(0, originalPrice - comboPrice),
+    return {
+      items,
+      originalPrice,
+      comboPrice,
+      savings: Math.max(0, originalPrice - comboPrice),
+    };
   };
-};
 
   const getProductOffer = (product) => {
     const now = new Date();
-
     const applicableOffers = offers.filter((offer) => {
       const isForProduct = !offer.product_id || offer.product_id === product.id;
-
       const hasStarted = !offer.start_at || new Date(offer.start_at) <= now;
-
       const hasNotExpired = !offer.end_at || new Date(offer.end_at) >= now;
-
       return offer.is_active && isForProduct && hasStarted && hasNotExpired;
     });
 
@@ -157,482 +145,789 @@ const getComboPricing = (combo) => {
       offerPrice: product.price - bestOffer.discount,
     };
   };
+
   const activeNotice = notices.find(
     (notice) =>
       notice.display_type === "banner" &&
       (notice.notice_type === "announcement" ||
-        notice.notice_type === "notice"),
+        notice.notice_type === "notice")
   );
 
   const popupNotice = notices.find((notice) => notice.display_type === "popup");
+
   const heroImage = products.find(
-    (product) => product.image_url && !product.is_sold_out,
+    (product) => product.image_url && !product.is_sold_out
   )?.image_url;
 
+  const navLinks = [
+    { label: "Home", href: "#home" },
+    { label: "Menu", href: "#menu" },
+    { label: "Combos", href: "#combos" },
+    { label: "Contact", href: "#footer" },
+  ];
+
+  const closeMobileNav = () => setMobileNavOpen(false);
+
   return (
-    <div className="min-h-screen bg-[#fffaf4] text-slate-900">
-      {/* Notice Popup */}
+    <div className="min-h-screen w-full overflow-x-hidden bg-[#FFF8F0] font-sans text-gray-900 antialiased">
+      {/* ---------------- Notice Popup ---------------- */}
       {popupNotice && isPopupOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
-          <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
-            <button
-              onClick={() => setIsPopupOpen(false)}
-              className="absolute right-4 top-4 text-2xl text-slate-400 hover:text-red-500"
-            >
-              &times;
-            </button>
-
-            <div className="mb-4 text-5xl">📢</div>
-
-            <h2 className="text-2xl font-black text-slate-900">
-              {popupNotice.title_en}
-            </h2>
-
-            <p className="mt-3 leading-7 text-slate-600">
-              {popupNotice.content_en}
-            </p>
-
-            <button
-              onClick={() => setIsPopupOpen(false)}
-              className="mt-6 w-full rounded-full bg-orange-500 px-5 py-3 font-bold text-white hover:bg-orange-600"
-            >
-              Got it
-            </button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="relative bg-gradient-to-br from-[#E02B2B] to-[#C41E1E] py-10 text-center">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white text-4xl shadow-lg">
+                📢
+              </div>
+              <button
+                onClick={() => setIsPopupOpen(false)}
+                aria-label="Close notice"
+                className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-xl text-white transition hover:bg-white/30"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="p-6 text-center sm:p-8">
+              <h2 className="text-2xl font-black text-gray-900">
+                {popupNotice.title_en}
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-gray-600">
+                {popupNotice.content_en}
+              </p>
+              <button
+                onClick={() => setIsPopupOpen(false)}
+                className="mt-6 w-full rounded-full bg-[#E02B2B] px-5 py-3.5 text-sm font-bold text-white transition hover:bg-[#C41E1E]"
+              >
+                Got it
+              </button>
+            </div>
           </div>
         </div>
       )}
-      {/* Navbar */}
-      <header className="sticky top-0 z-50 border-b border-orange-100 bg-white/95 backdrop-blur">
-        <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-          <a href="#" className="flex items-center gap-2">
-            <span className="text-4xl">🍔</span>
-            <div>
-              <h1 className="text-2xl font-black tracking-tight">
-                Food<span className="text-orange-500">Corner.</span>
-              </h1>
-              <p className="text-[10px] font-semibold tracking-wider text-slate-500">
-                FRESH • TASTY • AFFORDABLE
-              </p>
+
+      {/* ---------------- Header / Navbar ---------------- */}
+      <header
+        id="home"
+        className="sticky top-0 z-50 border-b border-orange-100/70 bg-[#FFF8F0]/95 backdrop-blur"
+      >
+        <nav
+          className="flex w-full items-center justify-between py-3"
+          style={{ width: "100%", maxWidth: "1280px", marginInline: "auto", paddingInline: "clamp(16px, 4vw, 32px)", boxSizing: "border-box" }}
+        >
+          {/* Logo */}
+          <a href="#home" className="flex items-center gap-2.5">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#E02B2B] to-[#C41E1E] text-xl text-white shadow-md shadow-red-200">
+              🍔
+            </span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-lg font-black tracking-tight text-gray-900 sm:text-xl">
+                DSP <span className="text-[#E02B2B]">Fast Food</span>
+              </span>
+              <span className="hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 sm:block">
+                Fresh • Tasty • Affordable
+              </span>
             </div>
           </a>
 
-          <span className="hidden items-center gap-2 rounded-full bg-green-50 px-3 py-2 text-xs font-bold text-green-700 sm:flex">
-            <span className="h-2 w-2 rounded-full bg-green-500" />
-            Open
-          </span>
-        </nav>
-      </header>
+          {/* Desktop Nav */}
+          <div className="hidden items-center gap-1 md:flex">
+            {navLinks.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                className="rounded-full px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-red-50 hover:text-[#E02B2B]"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
 
-      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-        {/* Hero */}
-        <section className="relative isolate mb-7 min-h-[270px] overflow-hidden rounded-3xl bg-gradient-to-r from-orange-100 via-orange-50 to-amber-100">
-          {heroImage && (
-            <img
-              src={heroImage}
-              alt="Featured food"
-              className="absolute inset-y-0 right-0 -z-10 h-full w-full object-cover opacity-40 sm:w-3/5 sm:opacity-100"
-            />
-          )}
-
-          <div className="absolute inset-0 -z-10 bg-gradient-to-r from-orange-50 via-orange-50/95 to-transparent" />
-
-          <div className="max-w-xl px-6 py-12 sm:px-10 sm:py-16">
-            <p className="mb-3 text-sm font-extrabold uppercase tracking-widest text-orange-600">
-              Welcome to FoodCorner
-            </p>
-
-            <h2 className="text-4xl font-black leading-tight sm:text-6xl">
-              Good Food,
-              <span className="block text-orange-500">Great Mood!</span>
-            </h2>
-
-            <p className="mt-4 max-w-md text-sm leading-6 text-slate-600 sm:text-base">
-              Explore our delicious menu, freshly prepared with love and served
-              with happiness.
-            </p>
-
+          {/* CTA + mobile toggle */}
+          <div className="flex items-center gap-2">
             <a
               href="#menu"
-              className="mt-6 inline-flex rounded-full bg-orange-500 px-6 py-3 font-bold text-white shadow-lg shadow-orange-500/20 transition hover:bg-orange-600"
+              className="hidden rounded-full bg-[#E02B2B] px-5 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#C41E1E] sm:inline-block"
             >
-              Explore Menu →
+              Explore Menu
             </a>
+            <button
+              onClick={() => setMobileNavOpen((v) => !v)}
+              aria-label="Toggle navigation"
+              aria-expanded={mobileNavOpen}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-700 md:hidden"
+            >
+              {mobileNavOpen ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M3 6h18M3 12h18M3 18h18" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </nav>
+
+        {/* Mobile Nav Dropdown */}
+        {mobileNavOpen && (
+          <div className="border-t border-orange-100 bg-[#FFF8F0] md:hidden">
+            <div className="space-y-1 px-4 py-3">
+              {navLinks.map((link) => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  onClick={closeMobileNav}
+                  className="block rounded-xl px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-red-50 hover:text-[#E02B2B]"
+                >
+                  {link.label}
+                </a>
+              ))}
+              <a
+                href="#menu"
+                onClick={closeMobileNav}
+                className="mt-2 block rounded-xl bg-[#E02B2B] px-4 py-3 text-center text-sm font-bold text-white"
+              >
+                Explore Menu
+              </a>
+            </div>
+          </div>
+        )}
+      </header>
+
+      <main>
+        {/* ---------------- Hero Section ---------------- */}
+        <section className="relative overflow-hidden">
+          {/* Soft decorative background */}
+          <div className="pointer-events-none absolute inset-0 -z-10">
+            <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-red-100/60 blur-3xl" />
+            <div className="absolute -left-24 top-40 h-72 w-72 rounded-full bg-orange-100/60 blur-3xl" />
+          </div>
+
+          <div
+            className="grid w-full items-center gap-8 py-12 sm:py-16 lg:grid-cols-2 lg:gap-12 lg:py-20"
+            style={{ width: "100%", maxWidth: "1280px", marginInline: "auto", paddingInline: "clamp(16px, 4vw, 32px)", boxSizing: "border-box" }}
+          >
+            {/* Text column */}
+            <div className="text-center lg:text-left">
+              <span className="inline-flex items-center gap-2 rounded-full bg-red-50 px-4 py-1.5 text-xs font-semibold text-[#E02B2B] ring-1 ring-red-100">
+                <span className="h-2 w-2 rounded-full bg-[#E02B2B]" />
+                Fresh • Tasty • Affordable
+              </span>
+
+              <h1 className="mt-5 text-4xl font-black leading-[1.05] tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
+                Fresh Food,
+                <span className="block text-[#E02B2B]">Great Mood!</span>
+              </h1>
+
+              <p className="mx-auto mt-5 max-w-md text-sm leading-relaxed text-gray-600 sm:text-base lg:mx-0">
+                Welcome to DSP Fast Food — your neighbourhood kitchen for
+                freshly made, affordably priced meals. Browse our menu, check
+                today&apos;s offers and combos, and walk in ready to order.
+              </p>
+
+              <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row lg:justify-start">
+                <a
+                  href="#menu"
+                  className="inline-flex w-full items-center justify-center rounded-full bg-[#E02B2B] px-8 py-3.5 text-sm font-bold text-white shadow-lg shadow-red-200 transition hover:bg-[#C41E1E] sm:w-auto"
+                >
+                  Explore Menu
+                  <svg className="ml-2 h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                </a>
+                <a
+                  href="#combos"
+                  className="inline-flex w-full items-center justify-center rounded-full border border-gray-200 bg-white px-8 py-3.5 text-sm font-bold text-gray-800 transition hover:border-red-200 hover:text-[#E02B2B] sm:w-auto"
+                >
+                  View Combos
+                </a>
+              </div>
+
+              {/* Quick stats */}
+              <div className="mt-10 grid grid-cols-3 gap-4 border-t border-orange-100 pt-6">
+                <div className="text-center lg:text-left">
+                  <div className="text-2xl font-black text-[#E02B2B]">
+                    {categories.length}
+                  </div>
+                  <div className="text-[11px] font-medium uppercase tracking-wider text-gray-500">
+                    Categories
+                  </div>
+                </div>
+                <div className="text-center lg:text-left">
+                  <div className="text-2xl font-black text-[#E02B2B]">
+                    {products.length}
+                  </div>
+                  <div className="text-[11px] font-medium uppercase tracking-wider text-gray-500">
+                    Menu Items
+                  </div>
+                </div>
+                <div className="text-center lg:text-left">
+                  <div className="text-2xl font-black text-[#E02B2B]">
+                    {combos.length}
+                  </div>
+                  <div className="text-[11px] font-medium uppercase tracking-wider text-gray-500">
+                    Combos
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Image column */}
+            <div className="relative">
+              <div className="relative mx-auto aspect-square w-full max-w-md overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-orange-100 to-red-100 shadow-xl">
+                {heroImage ? (
+                  <img
+                    src={heroImage}
+                    alt="Featured DSP Fast Food dish"
+                    className="h-full w-full object-contain p-5 sm:p-8"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-[120px] opacity-40">
+                    🍔
+                  </div>
+                )}
+              </div>
+
+              {/* Floating badge */}
+              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 rounded-2xl bg-white px-5 py-3 text-center shadow-lg ring-1 ring-orange-100 sm:left-6 sm:translate-x-0">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                  Today&apos;s Special
+                </div>
+                <div className="text-sm font-black text-[#E02B2B]">
+                  Freshly Prepared
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
-        {/* Special Offers */}
+        {/* ---------------- Special Offers ---------------- */}
         {offers.length > 0 && (
-          <section className="mb-8">
-            <div className="mb-4">
-              <h2 className="text-2xl font-extrabold">🔥 Special Offers</h2>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {offers.map((offer) => (
-                <article
-                  key={offer.id}
-                  className="flex items-center gap-4 rounded-2xl border border-orange-100 bg-white p-4 shadow-sm"
-                >
-                  {offer.products?.image_url ? (
-                    <img
-                      src={offer.products.image_url}
-                      alt={offer.products.name_en || "Offer"}
-                      className="h-20 w-20 rounded-xl object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-orange-50 text-3xl">
-                      🎁
-                    </div>
-                  )}
-
-                  <div className="min-w-0">
-                    <h3 className="font-bold">{offer.title_en}</h3>
-
-                    <p className="mt-1 text-sm text-slate-500">
-                      {offer.description_en}
-                    </p>
-
-                    <p className="mt-2 text-sm font-extrabold text-orange-600">
-                      {offer.discount_type === "percentage"
-                        ? `${offer.discount_value}% OFF`
-                        : `₹${formatPrice(offer.discount_value)} OFF`}
-                    </p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        )}
-
-{/* Custom Combos */}
-{combos.length > 0 && (
-  <section className="mb-8">
-    <div className="mb-4">
-      <h2 className="text-2xl font-extrabold">
-        🍔 Special Combo Deals
-      </h2>
-      <p className="mt-1 text-sm text-slate-500">
-        Enjoy more food at exciting prices!
-      </p>
-    </div>
-
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {combos.map((combo) => {
-        const pricing = getComboPricing(combo);
-
-        return (
-          <article
-            key={combo.id}
-            className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+          <section
+            className="w-full py-12 sm:py-16"
+            style={{ width: "100%", maxWidth: "1280px", marginInline: "auto", paddingInline: "clamp(16px, 4vw, 32px)", boxSizing: "border-box" }}
           >
-            <div className="flex h-28 items-center justify-center bg-gradient-to-br from-orange-100 to-amber-50 sm:h-36">
-              <span className="text-6xl">🍔</span>
-            </div>
-
-            <div className="p-3 sm:p-4">
-              <span className="rounded-full bg-orange-50 px-2 py-1 text-[10px] font-bold text-orange-600">
-                COMBO DEAL
+            <div className="mb-8 text-center">
+              <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#E02B2B]">
+                Limited Time
               </span>
-
-              <h3 className="mt-2 text-sm font-extrabold sm:text-base">
-                {combo.name}
-              </h3>
-
-              <div className="mt-3 space-y-2">
-                {pricing.items.map((item) => {
-                  const product = products.find(
-                    (p) => p.id === item.item_product_id
-                  );
-
-                  if (!product) return null;
-
-                  return (
-                    <div
-                      key={item.id}
-                      className="flex justify-between gap-2 text-xs text-slate-600"
-                    >
-                      <span>
-                        {product.name_en} × {item.quantity}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-3 border-t border-orange-50 pt-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xl font-black text-orange-600">
-                    ₹{formatPrice(pricing.comboPrice)}
-                  </span>
-
-                  {pricing.originalPrice > 0 && (
-                    <span className="text-xs text-slate-400 line-through">
-                      ₹{formatPrice(pricing.originalPrice)}
-                    </span>
-                  )}
-                </div>
-
-                {pricing.savings > 0 && (
-                  <p className="mt-1 text-xs font-bold text-green-600">
-                    Save ₹{formatPrice(pricing.savings)}
-                  </p>
-                )}
-              </div>
-            </div>
-          </article>
-        );
-      })}
-    </div>
-  </section>
-)}
-
-
-        {/* Categories */}
-        <section id="menu" className="scroll-mt-24">
-          <div className="mb-5 flex flex-nowrap gap-3 overflow-x-auto pb-3 whitespace-nowrap">
-            <button
-              onClick={() => setSelectedCategory("all")}
-              className={`rounded-full border px-6 py-3 text-sm font-bold transition ${
-                selectedCategory === "all"
-                  ? "border-orange-500 bg-orange-500 text-white"
-                  : "border-orange-100 bg-white hover:border-orange-400"
-              }`}
-            >
-              All Items
-            </button>
-
-           {categories
-  .filter(
-    (category) =>
-      category.name_en.toLowerCase() !== "combo offers"
-  )
-  .map((category) => (
-    <button
-      key={category.id}
-      onClick={() => setSelectedCategory(category.id)}
-      className={`rounded-full border px-6 py-3 text-sm font-bold transition ${
-        selectedCategory === category.id
-          ? "border-orange-500 bg-orange-500 text-white"
-          : "border-orange-100 bg-white hover:border-orange-400"
-      }`}
-    >
-      {category.name_en}
-    </button>
-  ))}
-          </div>
-
-          {/* Heading and Search */}
-          <div className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div>
-              <h2 className="text-3xl font-black">Our Menu</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Delicious items to explore
+              <h2 className="mt-2 text-3xl font-black tracking-tight text-gray-900 sm:text-4xl">
+                Special <span className="text-[#E02B2B]">Offers</span>
+              </h2>
+              <p className="mx-auto mt-3 max-w-xl text-sm text-gray-500">
+                Currently active deals you can grab in-store today.
               </p>
             </div>
 
-            <div className="relative w-full sm:max-w-sm">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2">
-                🔍
-              </span>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search food..."
-                className="w-full rounded-full border border-orange-100 bg-white py-3 pl-11 pr-4 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
-              />
-            </div>
-          </div>
-
-          {/* Loading */}
-          {loading && (
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              {[1, 2, 3, 4].map((item) => (
-                <div
-                  key={item}
-                  className="animate-pulse rounded-2xl bg-white p-3 shadow-sm"
-                >
-                  <div className="h-36 rounded-xl bg-orange-100" />
-                  <div className="mt-3 h-4 w-2/3 rounded bg-orange-100" />
-                  <div className="mt-2 h-4 w-1/2 rounded bg-orange-50" />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Error */}
-          {!loading && error && (
-            <div className="rounded-2xl bg-red-50 p-8 text-center text-red-700">
-              <h3 className="font-bold">Unable to load menu</h3>
-              <p className="mt-2 text-sm">{error}</p>
-              <button
-                onClick={() => window.location.reload()}
-                className="mt-4 rounded-full bg-orange-500 px-5 py-2 font-bold text-white"
-              >
-                Try Again
-              </button>
-            </div>
-          )}
-
-          {/* Products */}
-          {!loading && !error && filteredProducts.length > 0 && (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {filteredProducts.map((product) => {
-                const productOffer = getProductOffer(product);
-                const comboPricing = getComboPricing(product);
+            <div className="flex flex-wrap justify-center gap-4">
+              {offers.map((offer) => {
+                const discountedPrice =
+                  offer.products?.price != null
+                    ? offer.discount_type === "percentage"
+                      ? offer.products.price -
+                        (offer.products.price * offer.discount_value) / 100
+                      : Math.max(0, offer.products.price - offer.discount_value)
+                    : null;
 
                 return (
                   <article
-                    key={product.id}
-                    className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+                    key={offer.id}
+                    className="group relative flex w-full max-w-[420px] flex-col overflow-hidden rounded-2xl bg-white p-5 shadow-sm ring-1 ring-orange-100/70 transition hover:shadow-md sm:flex-row sm:items-center sm:gap-4"
+                    style={{ maxWidth: "420px", boxSizing: "border-box" }}
                   >
-                    <div className="relative h-36 overflow-hidden bg-orange-50 sm:h-48">
-                      {product.image_url ? (
+                    {/* Offer tag */}
+                    <span className="absolute right-4 top-4 rounded-full bg-red-50 px-3 py-1 text-[11px] font-black text-[#E02B2B]">
+                      {offer.discount_type === "percentage"
+                        ? `${offer.discount_value}% OFF`
+                        : `₹${formatPrice(offer.discount_value)} OFF`}
+                    </span>
+
+                    {offer.products?.image_url ? (
+                      <div className="mb-4 h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-orange-50 sm:mb-0">
                         <img
-                          src={product.image_url}
-                          alt={product.name_en}
+                          src={offer.products.image_url}
+                          alt={offer.products.name_en || "Offer"}
+                          className="h-full w-full object-cover"
                           loading="lazy"
-                          className={`h-full w-full object-cover ${
-                            product.is_sold_out ? "opacity-50" : ""
-                          }`}
                         />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-6xl">
-                          🍔
+                      </div>
+                    ) : (
+                      <div className="mb-4 flex h-24 w-24 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-4xl sm:mb-0">
+                        🎁
+                      </div>
+                    )}
+
+                    <div className="min-w-0 flex-1">
+                      <h3 className="pr-16 text-base font-black text-gray-900 sm:pr-20">
+                        {offer.title_en}
+                      </h3>
+                      {offer.description_en && (
+                        <p className="mt-1 line-clamp-2 text-xs text-gray-500">
+                          {offer.description_en}
+                        </p>
+                      )}
+                      {discountedPrice != null && (
+                        <div className="mt-3 flex items-baseline gap-2">
+                          <span className="text-lg font-black text-[#E02B2B]">
+                            ₹{formatPrice(discountedPrice)}
+                          </span>
+                          <span className="text-xs text-gray-400 line-through">
+                            ₹{formatPrice(offer.products.price)}
+                          </span>
                         </div>
                       )}
-
-                      <span
-                        className={`absolute left-2 top-2 rounded-md px-2 py-1 text-[10px] font-extrabold sm:text-xs ${
-                          product.is_sold_out
-                            ? "bg-red-600 text-white"
-                            : "bg-green-100 text-green-800"
-                        }`}
-                      >
-                        {product.is_sold_out ? "Sold Out" : "Available"}
-                      </span>
-                      {productOffer && !product.is_sold_out && (
-                        <span className="absolute right-2 top-2 rounded-md bg-red-600 px-2 py-1 text-[10px] font-extrabold text-white shadow sm:text-xs">
-                          {productOffer.discount_type === "percentage"
-                            ? `${formatPrice(productOffer.discount_value)}% OFF`
-                            : `₹${formatPrice(productOffer.discount_value)} OFF`}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="p-3 sm:p-4">
-                      <h3 className="line-clamp-1 text-sm font-extrabold sm:text-base">
-                        {product.name_en}
-                      </h3>
-
-                      <p className="mt-1 line-clamp-2 min-h-9 text-xs text-slate-500 sm:text-sm">
-                        {product.description_en}
-                      </p>
-
-                      <div className="mt-3 border-t border-orange-50 pt-3">
-                        {comboPricing && !product.is_sold_out ? (
-                          <>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="text-xl font-black text-orange-600">
-                                ₹{formatPrice(comboPricing.comboPrice)}
-                              </p>
-
-                              <p className="text-sm font-semibold text-slate-400 line-through">
-                                ₹{formatPrice(comboPricing.originalPrice)}
-                              </p>
-                            </div>
-
-                            {comboPricing.savings > 0 && (
-                              <p className="mt-1 text-xs font-bold text-green-600">
-                                Save ₹{formatPrice(comboPricing.savings)} on
-                                this combo!
-                              </p>
-                            )}
-
-                            <p className="mt-2 text-xs font-semibold text-orange-600">
-                              🎁 Combo Deal
-                            </p>
-                          </>
-                        ) : (
-                          <p className="text-xl font-black text-orange-600">
-                            ₹{formatPrice(product.price)}
-                          </p>
-                        )}
-                      </div>
                     </div>
                   </article>
                 );
               })}
             </div>
-          )}
+          </section>
+        )}
 
-          {/* Empty State */}
-          {!loading && !error && filteredProducts.length === 0 && (
-            <div className="rounded-2xl bg-white px-5 py-16 text-center shadow-sm">
-              <div className="text-5xl">🔍</div>
-              <h3 className="mt-4 text-xl font-bold">No food items found</h3>
-              <p className="mt-2 text-sm text-slate-500">
-                Try another search or category.
+        {/* ---------------- Special Combos ---------------- */}
+        {combos.length > 0 && (
+          <section
+            id="combos"
+            className="scroll-mt-24 bg-gradient-to-b from-white to-[#FFF1E0] py-12 sm:py-16"
+          >
+            <div
+              className="w-full"
+              style={{ width: "100%", maxWidth: "1280px", marginInline: "auto", paddingInline: "clamp(16px, 4vw, 32px)", boxSizing: "border-box" }}
+            >
+              <div className="mb-8 text-center">
+                <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#E02B2B]">
+                  Save More
+                </span>
+                <h2 className="mt-2 text-3xl font-black tracking-tight text-gray-900 sm:text-4xl">
+                  Special <span className="text-[#E02B2B]">Combos</span>
+                </h2>
+                <p className="mx-auto mt-3 max-w-xl text-sm text-gray-500">
+                  Hand-picked bundles at a better price than ordering items
+                  separately.
+                </p>
+              </div>
+
+              <div className="grid w-full grid-cols-1 justify-items-center gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {combos.map((combo) => {
+                  const pricing = getComboPricing(combo);
+                  return (
+                    <article
+                      key={combo.id}
+                      className="group flex w-full max-w-[360px] flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-orange-100/70 transition hover:shadow-md"
+                      style={{ maxWidth: "360px", boxSizing: "border-box" }}
+                    >
+                      {/* Combo visual */}
+                      <div className="relative flex h-36 items-center justify-center overflow-hidden bg-gradient-to-br from-orange-100 to-red-100 sm:h-40">
+                        {combo.image_url ? (
+                          <img
+                            src={combo.image_url}
+                            alt={combo.name}
+                            loading="lazy"
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                        ) : (
+                          <span className="text-6xl">🍔</span>
+                        )}
+                        <span className="absolute left-3 top-3 rounded-full bg-[#E02B2B] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white shadow-sm">
+                          Combo
+                        </span>
+                        {pricing.savings > 0 && (
+                          <span className="absolute right-3 top-3 rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-[#E02B2B] shadow-sm">
+                            Save ₹{formatPrice(pricing.savings)}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Combo body */}
+                      <div className="flex flex-1 flex-col p-4">
+                        <h3 className="text-base font-black text-gray-900">
+                          {combo.name}
+                        </h3>
+
+                        {combo.description && (
+                          <p className="mt-1 line-clamp-2 text-xs text-gray-500">
+                            {combo.description}
+                          </p>
+                        )}
+
+                        {/* Items */}
+                        <div className="mt-3 flex-1 space-y-1.5">
+                          {pricing.items.length === 0 && (
+                            <p className="text-[11px] italic text-gray-400">
+                              Combo contents will be listed here.
+                            </p>
+                          )}
+                          {pricing.items.map((item) => {
+                            const product = products.find(
+                              (p) => p.id === item.item_product_id
+                            );
+                            if (!product) return null;
+                            return (
+                              <div
+                                key={item.id}
+                                className="flex items-center justify-between text-[12px] text-gray-600"
+                              >
+                                <span className="flex items-center gap-1.5 truncate">
+                                  <span className="h-1 w-1 rounded-full bg-[#E02B2B]" />
+                                  <span className="truncate">
+                                    {product.name_en}
+                                  </span>
+                                </span>
+                                <span className="font-semibold text-gray-500">
+                                  ×{item.quantity}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Pricing */}
+                        <div className="mt-4 flex items-end justify-between border-t border-gray-100 pt-3">
+                          <div>
+                            <div className="text-[10px] font-medium uppercase tracking-wider text-gray-400">
+                              Combo Price
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-xl font-black text-[#E02B2B]">
+                                ₹{formatPrice(pricing.comboPrice)}
+                              </span>
+                              {pricing.originalPrice > pricing.comboPrice && (
+                                <span className="text-xs text-gray-400 line-through">
+                                  ₹{formatPrice(pricing.originalPrice)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {pricing.savings > 0 && (
+                            <span className="rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-bold text-green-600">
+                              You save ₹{formatPrice(pricing.savings)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ---------------- Popular Food ---------------- */}
+        <section id="menu" className="scroll-mt-24">
+          <div
+            className="w-full py-12 sm:py-16"
+            style={{ width: "100%", maxWidth: "1280px", marginInline: "auto", paddingInline: "clamp(16px, 4vw, 32px)", boxSizing: "border-box" }}
+          >
+            <div className="mb-8 text-center">
+              <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#E02B2B]">
+                Our Menu
+              </span>
+              <h2 className="mt-2 text-3xl font-black tracking-tight text-gray-900 sm:text-4xl">
+                Our Popular Tasty <span className="text-[#E02B2B]">Foods</span>
+              </h2>
+              <p className="mx-auto mt-3 max-w-xl text-sm text-gray-500">
+                Browse our freshly prepared dishes. Prices are in INR and
+                updated live.
               </p>
             </div>
-          )}
+
+            {/* Category filters */}
+            {categories.length > 0 && (
+              <div className="mb-6 flex flex-nowrap justify-start gap-2 overflow-x-auto pb-2 sm:justify-center [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <button
+                  onClick={() => setSelectedCategory("all")}
+                  className={`shrink-0 rounded-full px-5 py-2 text-xs font-semibold transition sm:text-sm ${
+                    selectedCategory === "all"
+                      ? "bg-[#E02B2B] text-white shadow-md shadow-red-200"
+                      : "bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  All
+                </button>
+                {categories
+                  .filter(
+                    (category) =>
+                      category.name_en.toLowerCase() !== "combo offers"
+                  )
+                  .map((category) => (
+                    <button
+                      key={category.id}
+                      onClick={() => setSelectedCategory(category.id)}
+                      className={`shrink-0 rounded-full px-5 py-2 text-xs font-semibold transition sm:text-sm ${
+                        selectedCategory === category.id
+                          ? "bg-[#E02B2B] text-white shadow-md shadow-red-200"
+                          : "bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-50"
+                      }`}
+                    >
+                      {category.name_en}
+                    </button>
+                  ))}
+              </div>
+            )}
+
+            {/* Search */}
+            <div className="mx-auto mb-8 max-w-md">
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.35-4.35" />
+                  </svg>
+                </span>
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search for food..."
+                  className="w-full rounded-full border border-gray-200 bg-white py-3 pl-11 pr-4 text-sm outline-none transition focus:border-[#E02B2B] focus:ring-2 focus:ring-red-100"
+                />
+              </div>
+            </div>
+
+            {/* Loading state */}
+            {loading && (
+              <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((item) => (
+                  <div
+                    key={item}
+                    className="animate-pulse rounded-2xl bg-white p-3 ring-1 ring-orange-100/70"
+                  >
+                    <div className="aspect-square rounded-xl bg-gray-100" />
+                    <div className="mt-4 h-4 w-2/3 rounded bg-gray-100" />
+                    <div className="mt-2 h-3 w-full rounded bg-gray-100" />
+                    <div className="mt-4 h-5 w-1/3 rounded bg-gray-100" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Error state */}
+            {!loading && error && (
+              <div className="rounded-2xl bg-red-50 p-8 text-center ring-1 ring-red-100">
+                <div className="text-4xl">⚠️</div>
+                <h3 className="mt-3 text-lg font-black text-gray-900">
+                  Unable to load menu
+                </h3>
+                <p className="mt-2 text-sm text-gray-600">{error}</p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="mt-4 rounded-full bg-[#E02B2B] px-6 py-2.5 text-sm font-bold text-white transition hover:bg-[#C41E1E]"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+
+            {/* Products grid */}
+            {!loading && !error && filteredProducts.length > 0 && (
+              <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+                {filteredProducts.map((product) => {
+                  const productOffer = getProductOffer(product);
+                  return (
+                    <article
+                      key={product.id}
+                      className="group flex flex-col overflow-hidden rounded-2xl bg-white p-3 shadow-sm ring-1 ring-orange-100/70 transition hover:shadow-md sm:p-4"
+                    >
+                      {/* Image */}
+                      <div className="relative mb-3 aspect-square w-full overflow-hidden rounded-xl bg-orange-50 sm:mb-4">
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.name_en}
+                            loading="lazy"
+                            className={`h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 ${
+                              product.is_sold_out ? "opacity-50 grayscale" : ""
+                            }`}
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-5xl text-gray-300">
+                            🍔
+                          </div>
+                        )}
+
+                        {/* Offer badge */}
+                        {productOffer && !product.is_sold_out && (
+                          <span className="absolute left-2 top-2 rounded-md bg-[#E02B2B] px-1.5 py-0.5 text-[9px] font-black text-white shadow-sm sm:text-[10px]">
+                            {productOffer.discount_type === "percentage"
+                              ? `${productOffer.discount_value}% OFF`
+                              : `₹${formatPrice(
+                                  productOffer.discount_value
+                                )} OFF`}
+                          </span>
+                        )}
+
+                        {/* Sold out overlay */}
+                        {product.is_sold_out && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-white/70 backdrop-blur-[2px]">
+                            <span className="rounded-full bg-gray-900 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-white sm:text-xs">
+                              Sold Out
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Body */}
+                      <div className="flex flex-1 flex-col text-center">
+                        <h3 className="line-clamp-1 text-sm font-black text-gray-900 sm:text-base">
+                          {product.name_en}
+                        </h3>
+
+                        {product.description_en && (
+                          <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-gray-500 sm:text-xs">
+                            {product.description_en}
+                          </p>
+                        )}
+
+                        {/* Price + availability */}
+                        <div className="mt-auto pt-3">
+                          {product.is_sold_out ? (
+                            <span className="block text-xs font-semibold text-gray-400">
+                              Currently Unavailable
+                            </span>
+                          ) : productOffer ? (
+                            <div className="flex items-baseline justify-center gap-1.5">
+                              <span className="text-base font-black text-[#E02B2B] sm:text-lg">
+                                ₹{formatPrice(productOffer.offerPrice)}
+                              </span>
+                              <span className="text-[10px] text-gray-400 line-through sm:text-xs">
+                                ₹{formatPrice(product.price)}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-base font-black text-[#E02B2B] sm:text-lg">
+                              ₹{formatPrice(product.price)}
+                            </span>
+                          )}
+
+                          {/* View-only footer pill */}
+                          <div className="mt-3 flex h-8 items-center justify-center rounded-full bg-orange-50 text-[9px] font-bold uppercase tracking-wider text-[#E02B2B] sm:h-9 sm:text-[10px]">
+                            {product.is_sold_out
+                              ? "Unavailable"
+                              : "View Only"}
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!loading && !error && filteredProducts.length === 0 && (
+              <div className="rounded-2xl bg-white py-16 text-center ring-1 ring-orange-100/70 sm:py-20">
+                <div className="text-5xl">🔍</div>
+                <h3 className="mt-4 text-lg font-black text-gray-900">
+                  No food items found
+                </h3>
+                <p className="mt-2 text-sm text-gray-500">
+                  Try a different search or category.
+                </p>
+                {(search || selectedCategory !== "all") && (
+                  <button
+                    onClick={() => {
+                      setSearch("");
+                      setSelectedCategory("all");
+                    }}
+                    className="mt-4 rounded-full bg-[#E02B2B] px-6 py-2.5 text-sm font-bold text-white transition hover:bg-[#C41E1E]"
+                  >
+                    Reset Filters
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </section>
 
-        {/* Store Notice */}
+        {/* ---------------- Store Notice Banner ---------------- */}
         {activeNotice && (
-          <section className="mt-8 rounded-2xl border border-green-200 bg-green-50 p-4 sm:p-5">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">📢</span>
+          <section
+            className="w-full pb-4"
+            style={{ width: "100%", maxWidth: "1280px", marginInline: "auto", paddingInline: "clamp(16px, 4vw, 32px)", boxSizing: "border-box" }}
+          >
+            <div className="flex flex-col items-center gap-4 rounded-2xl bg-gradient-to-r from-red-50 to-orange-50 p-6 text-center ring-1 ring-red-100 sm:flex-row sm:text-left">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-2xl shadow-sm">
+                📢
+              </span>
               <div>
-                <h3 className="font-extrabold text-green-900">
+                <h3 className="text-base font-black text-gray-900">
                   {activeNotice.title_en}
                 </h3>
-                <p className="mt-1 text-sm leading-6 text-green-800">
-                  {activeNotice.content_en}
-                </p>
+                {activeNotice.content_en && (
+                  <p className="mt-1 text-sm text-gray-600">
+                    {activeNotice.content_en}
+                  </p>
+                )}
               </div>
             </div>
           </section>
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="mt-12 bg-slate-950 text-white">
-        <div className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:grid-cols-2 lg:grid-cols-3 lg:px-8">
-          <div>
-            <h2 className="text-2xl font-black">
-              Food<span className="text-orange-500">Corner.</span>
-            </h2>
-            <p className="mt-2 text-sm text-slate-400">
-              Fresh • Tasty • Affordable
-            </p>
-          </div>
+      {/* ---------------- Footer ---------------- */}
+      <footer
+        id="footer"
+        className="mt-12 border-t border-orange-100 bg-[#FFF8F0]"
+      >
+        <div
+          className="w-full py-10"
+          style={{ width: "100%", maxWidth: "1280px", marginInline: "auto", paddingInline: "clamp(16px, 4vw, 32px)", boxSizing: "border-box" }}
+        >
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Brand */}
+            <div className="lg:col-span-2">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#E02B2B] to-[#C41E1E] text-xl text-white shadow-md shadow-red-200">
+                  🍔
+                </span>
+                <div className="leading-tight">
+                  <div className="text-xl font-black tracking-tight text-gray-900">
+                    DSP <span className="text-[#E02B2B]">Fast Food</span>
+                  </div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">
+                    Fresh • Tasty • Affordable
+                  </div>
+                </div>
+              </div>
+              <p className="mt-4 max-w-sm text-sm leading-relaxed text-gray-500">
+                Thank you for scanning our menu. Browse, decide, and walk in
+                ready to order — our team will take care of the rest.
+              </p>
+            </div>
 
-          <div>
-            <h3 className="font-bold">Opening Hours</h3>
-            <p className="mt-3 text-sm text-slate-400">
-              Please contact the store for timings.
-            </p>
-          </div>
+            {/* Quick links */}
+            <div>
+              <h3 className="text-sm font-black text-gray-900">Quick Links</h3>
+              <div className="mt-4 flex flex-col gap-2 text-sm text-gray-500">
+                {navLinks.map((link) => (
+                  <a
+                    key={link.label}
+                    href={link.href}
+                    className="transition hover:text-[#E02B2B]"
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </div>
+            </div>
 
-          <div>
-            <h3 className="font-bold">Quick Links</h3>
-            <div className="mt-3 flex flex-col gap-2 text-sm text-slate-400">
-              <a href="#menu" className="hover:text-orange-400">
-                Menu
-              </a>
-              <a href="#terms" className="hover:text-orange-400">
-                Terms & Conditions
-              </a>
-              <a href="#privacy" className="hover:text-orange-400">
-                Privacy Policy
-              </a>
+            {/* Contact */}
+            <div>
+              <h3 className="text-sm font-black text-gray-900">Visit Us</h3>
+              <p className="mt-4 text-sm text-gray-500">
+                This is a view-only digital menu. Please place your order
+                directly at the counter.
+              </p>
+              <p className="mt-3 text-xs text-gray-400">
+                For opening hours, contact the store directly.
+              </p>
             </div>
           </div>
-        </div>
 
-        <div className="border-t border-white/10 px-5 py-4 text-center text-xs text-slate-500">
-          © {new Date().getFullYear()} FoodCorner. All rights reserved.
+          <div className="mt-10 border-t border-orange-100 pt-6 text-center text-xs text-gray-400">
+            © {new Date().getFullYear()} DSP Fast Food. All rights reserved.
+          </div>
         </div>
       </footer>
     </div>

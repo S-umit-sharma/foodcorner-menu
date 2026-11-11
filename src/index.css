@@ -1,12 +1,9 @@
+
 @import "tailwindcss";
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: Arial, sans-serif;
-  background-color: #fff;
+@layer base {
+  body {
+    font-family: Arial, sans-serif;
+    background-color: #fff;
+  }
 }
