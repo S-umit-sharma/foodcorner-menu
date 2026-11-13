@@ -120,3 +120,6 @@ body {
     height: 125px;
   }
 }
+*{
+  scroll-behavior: smooth;
+}

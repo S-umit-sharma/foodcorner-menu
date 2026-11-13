@@ -17,66 +17,95 @@ function Menu() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  useEffect(() => {
-    const loadMenu = async () => {
-      try {
+ 
+useEffect(() => {
+  const loadMenu = async (initialLoad = false) => {
+    try {
+      if (initialLoad) {
         setLoading(true);
-        setError("");
+      }
 
-        const [
-          productData,
-          categoryResult,
-          offerResult,
-          noticeResult,
-          comboResult,
-          comboMasterResult,
-        ] = await Promise.all([
-          getProducts(),
-          supabase
-            .from("categories")
-            .select("*")
-            .eq("is_active", true)
-            .order("display_order"),
-          supabase
-            .from("offers")
-            .select("*, products(name_en, price, image_url)")
-            .eq("is_active", true),
-          supabase
-            .from("store_notices")
-            .select("*")
-            .eq("is_active", true)
-            .order("display_order"),
-          supabase.from("combo_items").select("*"),
-          supabase
-            .from("combos")
-            .select("*")
-            .eq("is_active", true)
-            .order("created_at", { ascending: false }),
-        ]);
+      setError("");
 
-        setProducts(productData || []);
+      const now = new Date().toISOString();
 
-        if (categoryResult.error) throw categoryResult.error;
-        if (offerResult.error) throw offerResult.error;
-        if (noticeResult.error) throw noticeResult.error;
-        if (comboResult.error) throw comboResult.error;
-        if (comboMasterResult.error) throw comboMasterResult.error;
+      const [
+        productData,
+        categoryResult,
+        offerResult,
+        noticeResult,
+        comboResult,
+        comboMasterResult,
+      ] = await Promise.all([
+        getProducts(),
 
-        setComboItems(comboResult.data || []);
-        setCombos(comboMasterResult.data || []);
-        setCategories(categoryResult.data || []);
-        setOffers(offerResult.data || []);
-        setNotices(noticeResult.data || []);
-      } catch (err) {
-        console.error("Menu loading error:", err);
-        setError(err.message || "Unable to load the menu.");
-      } finally {
+        supabase
+          .from("categories")
+          .select("*")
+          .eq("is_active", true)
+          .order("display_order"),
+
+        // Only fetch currently valid offers
+        supabase
+          .from("offers")
+          .select("*, products(name_en, price, image_url)")
+          .eq("is_active", true)
+          .lte("start_at", now)
+          .gte("end_at", now),
+
+        supabase
+          .from("store_notices")
+          .select("*")
+          .eq("is_active", true)
+          .order("display_order"),
+
+        supabase
+          .from("combo_items")
+          .select("*"),
+
+        supabase
+          .from("combos")
+          .select("*")
+          .eq("is_active", true)
+          .order("created_at", { ascending: false }),
+      ]);
+
+      setProducts(productData || []);
+
+      if (categoryResult.error) throw categoryResult.error;
+      if (offerResult.error) throw offerResult.error;
+      if (noticeResult.error) throw noticeResult.error;
+      if (comboResult.error) throw comboResult.error;
+      if (comboMasterResult.error) throw comboMasterResult.error;
+
+      setComboItems(comboResult.data || []);
+      setCombos(comboMasterResult.data || []);
+      setCategories(categoryResult.data || []);
+      setOffers(offerResult.data || []);
+      setNotices(noticeResult.data || []);
+
+    } catch (err) {
+      console.error("Menu loading error:", err);
+      setError(err.message || "Unable to load the menu.");
+    } finally {
+      if (initialLoad) {
         setLoading(false);
       }
-    };
+    }
+  };
 
-    loadMenu();
-  }, []);
+  // Initial menu load
+  loadMenu(true);
+
+  // Refresh menu every 30 seconds
+  const refreshInterval = setInterval(() => {
+    loadMenu(false);
+  }, 30000);
+
+  return () => clearInterval(refreshInterval);
+
+}, []);
+
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -216,7 +245,7 @@ function Menu() {
           {/* Logo */}
           <a href="#home" className="flex items-center gap-2.5">
             <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#E02B2B] to-[#C41E1E] text-xl text-white shadow-md shadow-red-200">
-              🍔
+               <img src="logo.jfif" alt="" />
             </span>
             <div className="flex flex-col leading-tight">
               <span className="text-lg font-black tracking-tight text-gray-900 sm:text-xl">
@@ -374,16 +403,17 @@ function Menu() {
 
             {/* Image column */}
             <div className="relative">
+             
               <div className="relative mx-auto aspect-square w-full max-w-md overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-orange-100 to-red-100 shadow-xl">
                 {heroImage ? (
                   <img
-                    src={heroImage}
+                    src="logo.jfif"
                     alt="Featured DSP Fast Food dish"
                     className="h-full w-full object-contain p-5 sm:p-8"
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-[120px] opacity-40">
-                    🍔
+                     <img src="logo.jfif" alt="" />
                   </div>
                 )}
               </div>
@@ -391,7 +421,7 @@ function Menu() {
               {/* Floating badge */}
               <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 rounded-2xl bg-white px-5 py-3 text-center shadow-lg ring-1 ring-orange-100 sm:left-6 sm:translate-x-0">
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                  Today&apos;s Special
+                  
                 </div>
                 <div className="text-sm font-black text-[#E02B2B]">
                   Freshly Prepared
@@ -517,7 +547,7 @@ function Menu() {
                       style={{ maxWidth: "360px", boxSizing: "border-box" }}
                     >
                       {/* Combo visual */}
-                      <div className="relative flex h-36 items-center justify-center overflow-hidden bg-gradient-to-br from-orange-100 to-red-100 sm:h-40">
+                      <div className="relative flex h-[300px] sm:h-[260px] items-center justify-center overflow-hidden bg-gradient-to-br from-orange-100 to-red-100 ">
                         {combo.image_url ? (
                           <img
                             src={combo.image_url}
@@ -804,7 +834,7 @@ function Menu() {
                           <div className="mt-3 flex h-8 items-center justify-center rounded-full bg-orange-50 text-[9px] font-bold uppercase tracking-wider text-[#E02B2B] sm:h-9 sm:text-[10px]">
                             {product.is_sold_out
                               ? "Unavailable"
-                              : "View Only"}
+                              : "Available"}
                           </div>
                         </div>
                       </div>
@@ -879,7 +909,7 @@ function Menu() {
             <div className="lg:col-span-2">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#E02B2B] to-[#C41E1E] text-xl text-white shadow-md shadow-red-200">
-                  🍔
+                  <img src="logo.jfif" alt="" />
                 </span>
                 <div className="leading-tight">
                   <div className="text-xl font-black tracking-tight text-gray-900">

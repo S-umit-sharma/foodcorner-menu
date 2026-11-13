@@ -248,7 +248,7 @@ function Admin() {
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-slate-950 p-5 text-white md:flex lg:w-72">
         <a href="/" className="flex items-center gap-3 rounded-2xl px-2 py-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#E02B2B] text-xl shadow-lg shadow-red-950/30">
-            🍔
+             <img src="logo.jfif" alt="" />
           </span>
           <span className="min-w-0">
             <span className="block text-lg font-black tracking-tight">
@@ -323,7 +323,7 @@ function Admin() {
                 {activeLabel || activeTab}
               </h1>
               <p className="mt-1 text-sm text-slate-500">
-                Manage your restaurant menu and store content.
+                Manage your cafe menu and store content.
               </p>
             </div>
             {activeTab === "products" && (
