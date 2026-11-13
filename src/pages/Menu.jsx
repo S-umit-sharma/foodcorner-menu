@@ -16,6 +16,14 @@ function Menu() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [selection, setSelection] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("dsp-menu-selection") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [isSelectionOpen, setIsSelectionOpen] = useState(false);
 
  
 useEffect(() => {
@@ -122,6 +130,46 @@ useEffect(() => {
 
   const formatPrice = (price) =>
     new Intl.NumberFormat("en-IN").format(price ?? 0);
+
+  // Keep the customer's selection on this device after refresh.
+  useEffect(() => {
+    localStorage.setItem("dsp-menu-selection", JSON.stringify(selection));
+  }, [selection]);
+
+  const addToSelection = (item) => {
+    setSelection((current) => {
+      const existing = current.find((entry) => entry.key === item.key);
+      if (existing) {
+        return current.map((entry) =>
+          entry.key === item.key
+            ? { ...entry, quantity: entry.quantity + 1, price: item.price }
+            : entry
+        );
+      }
+      return [...current, { ...item, quantity: 1 }];
+    });
+  };
+
+  const changeSelectionQuantity = (key, change) => {
+    setSelection((current) =>
+      current
+        .map((entry) =>
+          entry.key === key
+            ? { ...entry, quantity: entry.quantity + change }
+            : entry
+        )
+        .filter((entry) => entry.quantity > 0)
+    );
+  };
+
+  const selectedCount = selection.reduce(
+    (total, item) => total + item.quantity,
+    0
+  );
+  const selectionTotal = selection.reduce(
+    (total, item) => total + Number(item.price) * item.quantity,
+    0
+  );
 
   const getComboPricing = (combo) => {
     const items = comboItems.filter(
@@ -634,6 +682,22 @@ useEffect(() => {
                             </span>
                           )}
                         </div>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            addToSelection({
+                              key: `combo-${combo.id}`,
+                              type: "combo",
+                              name: combo.name,
+                              price: pricing.comboPrice,
+                              image_url: combo.image_url,
+                            })
+                          }
+                          className="mt-4 w-full rounded-full bg-[#E02B2B] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#C41E1E] active:scale-[0.98]"
+                        >
+                          + Add combo to selection
+                        </button>
                       </div>
                     </article>
                   );
@@ -832,10 +896,27 @@ useEffect(() => {
 
                           {/* View-only footer pill */}
                           <div className="mt-3 flex h-8 items-center justify-center rounded-full bg-orange-50 text-[9px] font-bold uppercase tracking-wider text-[#E02B2B] sm:h-9 sm:text-[10px]">
-                            {product.is_sold_out
-                              ? "Unavailable"
-                              : "Available"}
+                            {product.is_sold_out ? "Unavailable" : "Available"}
                           </div>
+                          {!product.is_sold_out && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                addToSelection({
+                                  key: `product-${product.id}`,
+                                  type: "product",
+                                  name: product.name_en,
+                                  price: productOffer
+                                    ? productOffer.offerPrice
+                                    : Number(product.price),
+                                  image_url: product.image_url,
+                                })
+                              }
+                              className="mt-2 w-full rounded-full border border-[#E02B2B] bg-white px-3 py-2 text-[10px] font-bold text-[#E02B2B] transition hover:bg-red-50 sm:text-xs"
+                            >
+                              + Add to selection
+                            </button>
+                          )}
                         </div>
                       </div>
                     </article>
@@ -894,6 +975,122 @@ useEffect(() => {
           </section>
         )}
       </main>
+
+      {/* ---------------- Floating Selection Calculator ---------------- */}
+      {selectedCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setIsSelectionOpen(true)}
+          className="fixed bottom-4 left-1/2 z-[70] flex w-[calc(100%-24px)] max-w-md -translate-x-1/2 items-center justify-between rounded-2xl bg-gray-950 px-5 py-3.5 text-left text-white shadow-2xl ring-1 ring-white/10 transition hover:bg-gray-900 sm:bottom-6"
+          aria-label="Open selected items and total"
+        >
+          <span>
+            <span className="block text-xs font-semibold text-white/70">
+              {selectedCount} {selectedCount === 1 ? "item" : "items"} selected
+            </span>
+            <span className="mt-0.5 block text-lg font-black">
+              Total: ₹{formatPrice(selectionTotal)}
+            </span>
+          </span>
+          <span className="rounded-full bg-[#E02B2B] px-4 py-2 text-xs font-bold">
+            View selection ↑
+          </span>
+        </button>
+      )}
+
+      {isSelectionOpen && (
+        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="selection-title"
+            className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
+          >
+            <div className="flex items-center justify-between border-b border-orange-100 px-5 py-4 sm:px-6">
+              <div>
+                <h2 id="selection-title" className="text-xl font-black text-gray-900">
+                  Your Selection
+                </h2>
+                <p className="mt-1 text-xs text-gray-500">
+                  Review items and calculate your estimated bill.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSelectionOpen(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xl text-gray-600 hover:bg-gray-200"
+                aria-label="Close selection"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4 sm:px-6">
+              {selection.map((item) => (
+                <div key={item.key} className="flex items-center gap-3 rounded-2xl border border-orange-100 p-3">
+                  {item.image_url ? (
+                    <img src={item.image_url} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />
+                  ) : (
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-2xl">
+                      {item.type === "combo" ? "🍱" : "🍔"}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-gray-900">{item.name}</p>
+                    <p className="mt-1 text-xs text-gray-500">₹{formatPrice(item.price)} each</p>
+                    <p className="mt-1 text-xs font-bold text-[#E02B2B]">₹{formatPrice(Number(item.price) * item.quantity)}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => changeSelectionQuantity(item.key, -1)}
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-50 font-bold text-[#E02B2B] hover:bg-orange-100"
+                      aria-label={`Decrease ${item.name}`}
+                    >−</button>
+                    <span className="w-5 text-center text-sm font-bold">{item.quantity}</span>
+                    <button
+                      type="button"
+                      onClick={() => changeSelectionQuantity(item.key, 1)}
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-[#E02B2B] font-bold text-white hover:bg-[#C41E1E]"
+                      aria-label={`Increase ${item.name}`}
+                    >+</button>
+                  </div>
+                </div>
+              ))}
+              {selection.length === 0 && (
+                <p className="py-10 text-center text-sm text-gray-500">Your selection is empty.</p>
+              )}
+            </div>
+
+            <div className="border-t border-orange-100 bg-[#FFF8F0] px-5 py-4 sm:px-6">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-gray-600">Estimated total</span>
+                <span className="text-2xl font-black text-[#E02B2B]">₹{formatPrice(selectionTotal)}</span>
+              </div>
+              <p className="mt-1 text-[11px] leading-relaxed text-gray-500">
+                This is a price estimate only. No order or payment is placed. Please confirm prices at the counter.
+              </p>
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelection([])}
+                  disabled={selection.length === 0}
+                  className="flex-1 rounded-full border border-gray-200 bg-white px-4 py-3 text-xs font-bold text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Clear all
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsSelectionOpen(false)}
+                  className="flex-1 rounded-full bg-[#E02B2B] px-4 py-3 text-xs font-bold text-white transition hover:bg-[#C41E1E]"
+                >
+                  Continue browsing
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
 
       {/* ---------------- Footer ---------------- */}
       <footer
